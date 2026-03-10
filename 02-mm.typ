@@ -2,7 +2,7 @@
 
 #show: slides.with(
   title: "Memory Management", // Required
-  subtitle: "subtitle",
+  subtitle: "2026-03-10",
   date: "1s2026",
   authors: ("Gabriela Bittencourt, João Pedro Leôncio and Vinícius Peixoto"),
 
@@ -64,7 +64,9 @@ When we talk about 'memory' in OS context, we are talking about *RAM*
 
 - Non-contiguous Memory Allocation
 
-    - a
+    - Allows each process to "see" the entire address space as its own
+    - Multiple processes can coexist
+    - Memory allocation logic is opaque to processes -- the kernel handles virtual memory
 
 == Non-contiguous Memory Allocation
 
