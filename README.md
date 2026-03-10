@@ -1,0 +1,1 @@
+`watch typst <filename>.typ`
