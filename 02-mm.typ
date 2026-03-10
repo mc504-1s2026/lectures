@@ -289,7 +289,6 @@ for walking the page tables is as follows:
 == References
 
 - Tanenbaum, Andrew. (2012) '3. Memory Management', in _Modern operating systems_. Pearson Education, Inc., 4th ed.
+- _The RISC-V Instruction Set Manual, Volume II: Privileged Architecture_. https://riscv.github.io/riscv-isa-manual/snapshot/privileged/
 
-- TODO: add kernel codes
-
-- TODO: add kernel docs
+- _Virtual Memory Layout on RISC-V Linux_. https://docs.kernel.org/arch/riscv/vm-layout.html
