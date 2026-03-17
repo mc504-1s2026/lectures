@@ -292,3 +292,88 @@ for walking the page tables is as follows:
 - _The RISC-V Instruction Set Manual, Volume II: Privileged Architecture_. https://riscv.github.io/riscv-isa-manual/snapshot/privileged/
 
 - _Virtual Memory Layout on RISC-V Linux_. https://docs.kernel.org/arch/riscv/vm-layout.html
+
+= Lab01: Memory management
+
+== files
+
+```
+├── include (kernel headers)
+│   └── arch
+│       ├── pgtable.h (defs and helpers for page table)
+│       └── kalloc.h (freelist implementation)
+└── src
+    └── mm.c (implementation for memory management)
+
+```
+
+#pagebreak()
+
+- `pgtable.h`: All the hardware specs and design for the page table
+
+- `kalloc.h`: Implement a `freelist` -- non-allocated pages of memory
+    - `page_alloc()`: pop the data struct of freelist
+    - `page_free()`: insert in data struct of freelist
+
+- `mm.c`: Memory management
+    - `ptb_walker`: walk through the levels of pagetable and returns when valid or !valid, or leaf or !leaf (it is up to implementation)
+    - `vm_page_alloc`: allocate a page given a virtual address
+    - `mm_init`: allocate all sessions: `.bss`, `.text`, `.data`, `.rodata`
+
+
+= Free Pages
+
+== Linked list
+
+```
+struct node {
+    int data;
+    struct node *next;
+}
+```
+
+To add new node:
+
+```
+struct create_node {
+    struct node new_node = (struct node*)malloc(sizeof(struct node)); // :(
+    // ...
+}
+```
+
+We cannot use a `malloc` when implementing the precursor of `malloc`.
+
+We cannot dinamic alloc the memory if there is no memory management yet.
+
+== Data Structs options for the `freelist`
+
+- Linked list, with all the nodes declared in array
+
+- Directly an array with the addresses and a walker
+
+- Bitmap the used pages and calculate the free addresses from the position of the bit
+
+- Use the pages as node of the linked list -- write at the first word, the address for next page
+
+= Allocating
+
+== sessions
+
+which flag to use in each session? (`PTE_READ` , `PTE_WRITE` , `PTE_EXEC`)
+
+- `.text`: contains executable instructions
+
+- `.bss`: contains non-initialized statically allocated variables
+
+- `.rodata`: contains read-only data
+
+- `.data`: contains data that can be altered
+
+== Attention when implementing
+
+```
+*** Fatal Exception *** core dump ***
+Segmentation fault (core dumped)
+```
+
+Will never occur in your code.
