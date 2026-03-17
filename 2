@@ -1,5 +1,5 @@
-#import "@preview/diatypst:0.9.1": *
 #import "@preview/diagraph:0.3.6": *
+#import "@preview/diatypst:0.9.1": *
 
 #show: slides.with(
   title: "Memory Management", // Required
@@ -268,9 +268,10 @@ Bitwise operations: `NOT` (`~`), `AND` (`&`), `OR` (`|`), `XOR` (`^`)
   A & B:
 
       10110001
-    & 01111001
+    &
+      01111001
     ------------
-    = 00110001
+      00110001
   ```
 
   #colbreak()
@@ -279,237 +280,22 @@ Bitwise operations: `NOT` (`~`), `AND` (`&`), `OR` (`|`), `XOR` (`^`)
   A | B:
 
       10110001
-    | 01111001
+    |
+      01111001
     ------------
-    = 00000110
+      00000110
   ```
-
-  #colbreak()
 
   ```
   A ^ B:
 
       10110001
-    ^ 01111001
+    ^
+      01111001
     ------------
-    = 00000110
+      00000110
   ```
 ]
-
-#pagebreak()
-
-#columns(2)[
-  Left shift: `<<`
-  ```
-   A:       1000000010110001
-   A << 5:  0001011000100000
-  ```
-
-  #align(center)[
-    #rect()[ `n` bit left-shift $->$ multiply by $2^n$ ]
-  ]
-
-  #colbreak()
-
-  *Logical* right shift: `>>`
-  ```
-   A:       1000000010110001
-   A >> 5:  0000010000000101
-  ```
-
-  #align(center)[
-    #rect()[ `n` bit logical right-shift $->$ (unsigned) divide by $2^n$ ]
-  ]
-]
-
-#pagebreak()
-
-#columns(2)[
-  *Logical* right shift: `>>`
-  ```
-   A:       1000000010110001
-   A >> 5:  0000010000000101
-  ```
-
-  #align(center)[
-    #rect()[ `n` bit (logical) right-shift $->$ (unsigned) divide by $2^n$ ]
-  ]
-
-  #colbreak()
-
-  *Arithmetic* right shift: `>>`
-  ```
-   A:       1000000010110001
-   A >> 5:  1111110000000101
-  ```
-  #align(center)[
-    #rect()[ `n` bit (arithmetic) right-shift $->$ (signed) divide by $2^n$ ]
-  ]
-]
-
-#text(red)[*Watch out:*] in C, `unsigned` $->$ *logical* left-shift, `signed` $->$ *arithmetic* left-shift
-
-#columns(2)[
-  ```c
-  unsigned int A = 0b1000000010110001;
-  A >>= 5;      // 0b0000010000000101
-  ```
-
-  #colbreak()
-
-  ```c
-  int A =      0b1000000010110001;
-  A >>= 5;  // 0b1111110000000101
-  ```
-]
-
-#pagebreak()
-
-== Bitmasks
-
-A *bitmask* is a carefully constructed number that helps us *read/write specific bits* of another number.
-
-- Quick terminology note: "*clear* a bit" means *make it 0*, "*set* a bit" means *make it 1*
-
-Suppose we have have `A = 0b1000000010110001`, and want to *read bit 4*. We use the following trick:
-
-#[
-  #show raw: set text(size: 12pt)
-  ```
-  Read A[4]: A & (1 << 4)
-                        â
-  A        0b1000000010110001
-  MASK   & 0b0000000000010000 ---> (1 << 4)
-         ---------------------
-         = 0b0000000000010000
-  ```
-]
-
-
-#pagebreak()
-
-Similarly, if we wanted to *set bit 6*:
-
-#[
-  #show raw: set text(size: 12pt)
-  ```
-  Set A[6]: A | (1 << 6):
-                      â
-  A        0b1000000010110001
-  MASK   | 0b0000000001000000 ---> (1 << 6)
-         ---------------------
-         = 0b1000000011110001
-  ```
-]
-
-#pagebreak()
-
-What about *clearing bit 5*?
-
-#[
-  #show raw: set text(size: 12pt)
-  ```
-  Clear A[5]: A & ~(1 << 5):
-                       â
-  A        0b1000000010110001
-  ~MASK  & 0b1111111111011111 ---> ~(1 << 5)
-         ---------------------
-         = 0b1000000010010001
-  ```
-]
-
-#pagebreak()
-
-Notice the pattern:
-- We have some number (or register) `A`
-- Want to modify bit `n`? $->$ `MASK = (1 << n)`
-- Set bit `n` $->$ `A |= MASK`
-- Clear bit `n` $->$ `A &= ~MASK`
-
-Now let's generalize this to *multiple bits*. How to *set bits 12, 3 and 2*?
-
-#pagebreak()
-
-#[
-  #show raw: set text(size: 12pt)
-  ```
-  Set A[12], A[3:2]: A |= MASK
-  MASK = ((1 << 12) | (1 << 3) | (1 << 2))
-                â        ââ
-  A        0b1000000010110001
-  MASK   | 0b0001000000001100
-         ---------------------
-         = 0b1001000010111101
-  ```
-]
-
-What about *clearing bits 15, 4 and 5*?
-
-#pagebreak()
-
-#[
-  #show raw: set text(size: 12pt)
-  ```
-  Clear A[15], A[5:4]: A &= ~MASK
-  MASK = ((1 << 15) | (1 << 5) | (1 << 4))
-             â         ââ
-  A        0b1000000010110001
-  MASK   & 0b0111111111001111
-         ---------------------
-         = 0b0000000010000001
-  ```
-]
-
-Last example (may be relevant for your next lab ð): how to write `0b1101` to *bits 4, 5, 6 and 7*?
-
-#pagebreak()
-
-At this point we might as well do it in plain C:
-
-#[
-  #show raw: set text(size: 11pt)
-  ```c
-    #define MASK ((1UL << 7) | (1UL << 6) | (1UL << 5) | (1UL << 4))
-    #define SHIFT 4
-    uint64_t a = 0b1000000010110001 
-    a &= ~MASK; // clear a[7:4]
-    a |= (0b1101UL << SHIFT)
-  ```
-]
-
-Notice we use `1UL` for the constants in the macro; numeric constants in C *default to `int` (signed)*,
-but we generally want to *avoid signed bit arithmetic*; the `UL` suffix tells specifies that the
-numeric constant is an `unsigned long int` (e.g. 64-bit unsigned integer).
-
-Always try to avoid mixing signed and unsigned numbers as it is one of the biggest sources of
-*undefined behavior* in C.
-
-= Configuring virtual memory and paging
-
-== Common idioms
-
-#figure(
-  image("images/02-sv39-phys.svg"),
-  caption: [ The Sv39 physical address encoding. ]
-)
-
-#figure(
-  image("images/02-sv39-virt.svg"),
-  caption: [ The Sv39 virtual address encoding. ]
-)
-
-```c
-#define PAGE_SHIFT 12
-#define PAGE_SIZE (1 << PAGE_SHIFT)
-```
-
-Note:
-
-#[
-  #show math.equation: set text(font: "Fira Mono")
-  $1 \<\< 12 = 0 b 1 000000000000$
-]
-
 
 #raw-render(```
     digraph G {
@@ -539,94 +325,6 @@ Note:
 ```,
 )
 
-#pagebreak()
-
-
-= Lab: Memory management
-
-== files
-
-```
-├── include (kernel headers)
-│   └── arch
-│       ├── pgtable.h (defs and helpers for page table)
-│       └── kalloc.h (freelist implementation)
-└── src
-    └── mm.c (implementation for memory management)
-
-```
-
-#pagebreak()
-
-- `pgtable.h`: All the hardware specs and design for the page table
-
-- `kalloc.h`: Implement a `freelist` -- non-allocated pages of memory
-    - `page_alloc()`: pop the data struct of freelist
-    - `page_free()`: insert in data struct of freelist
-
-- `mm.c`: Memory management
-    - `ptb_walker`: walk through the levels of pagetable and returns when valid or !valid, or leaf or !leaf (it is up to implementation)
-    - `vm_page_alloc`: allocate a page given a virtual address
-    - `mm_init`: allocate all sessions: `.bss`, `.text`, `.data`, `.rodata`
-
-
-= Free Pages
-
-== Linked list
-
-```
-struct node {
-    int data;
-    struct node *next;
-}
-```
-
-To add new node:
-
-```
-struct create_node {
-    struct node new_node = (struct node*)malloc(sizeof(struct node)); // :(
-    // ...
-}
-```
-
-We cannot use a `malloc` when implementing the precursor of `malloc`.
-
-We cannot dinamic alloc the memory if there is no memory management yet.
-
-== Data Structs options for the `freelist`
-
-- Linked list, with all the nodes declared in array
-
-- Directly an array with the addresses and a walker
-
-- Bitmap the used pages and calculate the free addresses from the position of the bit
-
-- Use the pages as node of the linked list -- write at the first word, the address for next page
-
-= Allocating
-
-== sessions
-
-which flag to use in each session? (`PTE_READ` , `PTE_WRITE` , `PTE_EXEC`)
-
-- `.text`: contains executable instructions
-
-- `.bss`: contains non-initialized statically allocated variables
-
-- `.rodata`: contains read-only data
-
-- `.data`: contains data that can be altered
-
-== Attention when implementing
-
-```
-*** Fatal Exception *** core dump ***
-Segmentation fault (core dumped)
-```
-
-Will never occur in your code.
-
 = References
 
 == References
@@ -635,4 +333,3 @@ Will never occur in your code.
 - _The RISC-V Instruction Set Manual, Volume II: Privileged Architecture_. https://riscv.github.io/riscv-isa-manual/snapshot/privileged/
 
 - _Virtual Memory Layout on RISC-V Linux_. https://docs.kernel.org/arch/riscv/vm-layout.html
-
