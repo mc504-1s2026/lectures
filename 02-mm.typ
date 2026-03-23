@@ -503,41 +503,42 @@ Always try to avoid mixing signed and unsigned numbers as it is one of the bigge
 #define PAGE_SIZE (1 << PAGE_SHIFT)
 ```
 
-Note:
+*Exercise:* how to calculate `PAGE_MASK`?
 
-#[
-  #show math.equation: set text(font: "Fira Mono")
-  $1 \<\< 12 = 0 b 1 000000000000$
-]
+#pagebreak()
 
+*Answer:*
+```c
+#define PAGE_MASK (PAGE_SIZE - 1)
+```
 
-#raw-render(```
-    digraph G {
-        graph   [pad="0.5", nodesep="0.5", ranksep="2"]
-        node    [shape=plain]
-        rankdir=LR
-
-        PTB3 [label=<
-            <table border="0" cellborder="1" cellspacing="0">
-                <tr> <td>index</td> <td>PTE</td> </tr>
-                <tr> <td>0x00000000</td> <td port="0">0xffff</td> </tr>
-            </table>
-        
-        >]
-
-        PTB2 [label=<
-            <table>
-                <tr> <td>index</td> <td>PTE</td> </tr>
-                <tr> <td port="l0">0x00000000</td> <td>0xffff</td> </tr>
-                <tr> <td port="l1">0x00000000</td> <td>0xffff</td> </tr>
-            </table>
-        
-        >]
-
-        PTB3:0 -> PTB2:l1
-    }
-```,
-)
+// #raw-render(```
+//     digraph G {
+//         graph   [pad="0.5", nodesep="0.5", ranksep="2"]
+//         node    [shape=plain]
+//         rankdir=LR
+// 
+//         PTB3 [label=<
+//             <table border="0" cellborder="1" cellspacing="0">
+//                 <tr> <td>index</td> <td>PTE</td> </tr>
+//                 <tr> <td>0x00000000</td> <td port="0">0xffff</td> </tr>
+//             </table>
+// 
+//         >]
+// 
+//         PTB2 [label=<
+//             <table>
+//                 <tr> <td>index</td> <td>PTE</td> </tr>
+//                 <tr> <td port="l0">0x00000000</td> <td>0xffff</td> </tr>
+//                 <tr> <td port="l1">0x00000000</td> <td>0xffff</td> </tr>
+//             </table>
+// 
+//         >]
+// 
+//         PTB3:0 -> PTB2:l1
+//     }
+// ```,
+// )
 
 #pagebreak()
 
@@ -606,9 +607,9 @@ We cannot dinamic alloc the memory if there is no memory management yet.
 
 = Allocating
 
-== sessions
+== Sections
 
-which flag to use in each session? (`PTE_READ` , `PTE_WRITE` , `PTE_EXEC`)
+Which flag to use in each section of the kernel executable? (`PTE_READ` , `PTE_WRITE` , `PTE_EXEC`)
 
 - `.text`: contains executable instructions
 
