@@ -14,30 +14,212 @@
   toc: true,
 )
 
-= Introduction
-
 Topics braindump:
 - Motivation for traps
-    - Example of reading from mouse/kb
-    - Example of how to deal with invalid operation (e.g. page faults)
-    - Arrive at the conclusion that we need some kind of preemption to handle these
+  - Example of reading from mouse/kb
+  - Example of how to deal with invalid operation (e.g. page faults)
+  - Arrive at the conclusion that we need some kind of preemption to handle these
 - Definition
-    - Traps = jumping to another address upon an event
-    - Synchronous: software traps (exceptions)
-        - Example: page faults
-        - Mention page swapping, CoW, etc
-    - Asynchronous: external traps (interrupts)
-        - Example: timers (systick, rtc, etc), serial, etc
+  - Traps = stop current execution and jump to another address upon an event
+  - Synchronous: software traps (exceptions)
+    - Example: page faults
+    - Mention page swapping, CoW, etc
+  - Asynchronous: external traps (interrupts)
+    - Example: timers (systick, rtc, etc), serial, etc
 - Trap considerations
-    - Trap handlers
-    - Need handlers to be fast
-        - Mention how Linux does this: top halves vs. bottom halves
-    - Random locations in the kernel can be *preempted*
-    - Talk about the RISC-V ABI, trap handler needs to save caller-saved
-    - 
+  - Anatomy of a trap handler
+    - Interrupt enabling disabling in registers
+  - Need handlers to be fast
+    - Mention how Linux does this: top halves vs. bottom halves
+  - Talk about the RISC-V ABI, trap handler needs to save caller-saved registers
+  - All code in the kernel has to assume it can be *preempted*
+- Introduction to concurrency
+  - Concurrency vs. paralellism
+    - Example: Python `async`
+  - Basic race conditions
+  - Need for locking mechanisms
 
+= Introduction
 
-== Why traps?
+== Motivation
+
+Certain events in a system may need immediate attention:
+- Devices
+  - User input, such as typing on a keyboard, moving a mouse, etc.
+  - GPU finishes a job (e.g. rendering the next frame of your videogame)
+  - Network interface card (NIC) receives a new network packet
+  - And many more
+- Software error conditions (e.g. someone messed up):
+  - Invalid instructions
+  - Page faults (invalid access to pages)
+
+*Question: how to deal with those events?*
+
+== Idea: polling
+
+- Most hardware devices are exposed to software through *memory-mapped registers*
+  - e.g. hardware registers can be accessed by reading/writing to memory addresses
+  - For example, the serial device our kernel uses to print to the console:
+
+  ```c
+  char *uart = (char*)0x10000000;
+  void putchar(char c)
+  {
+	  *uart = c;
+	  return;
+  }
+  ```
+  - But also many others, e.g. PCI devices (GPUs, NICs, SATA/NVMe controllers, etc.)
+
+#pagebreak()
+
+*Idea*: continuously check those memory-mapped registers for any events
+  - This is called *busy-waiting*
+
+```c
+#define DEV_DATA_AVAIL  *(u64*)0x20000000;
+#define DEV_DATA        *(u64*)0x20000008;
+u64 dev_read()
+{
+  volatile u64 data_available = DEV_REG_DATA_AVAIL;
+  volatile u64 data = DEV_REG_DATA;
+
+  while (1) {
+    if (data_available != 0)
+      return data;
+  }
+}
+```
+
+What is the *problem* with this?
+
+#pagebreak()
+
+What is the *problem* with this?
+- We waste a lot of CPU cycles checking if data is available
+- What if we need to do other work in the meantime?
+- Stop doing work periodically to check?
+  - How often should we check without risking missing data because we were too slow?
+- This game gets complicated very quickly when you have multiple devices
+- And what if we have a *bug* in our driver (e.g. nullptr deref)?
+- Crash the whole system?
+
+There is a better solution: *traps*
+
+= Traps
+
+== Definition
+
+- A *trap* is an event that causes the CPU to stop whatever it is doing and perform a *jump* to another code location upon an event
+- There are generally two types of events:
+  - *External*: an external device raises an event that requires immediate attention
+    - e.g. a character has arrived in our serial device, or a network packet arrived in a NIC, etc.
+    - These are commonly called *interrupts*, or *IRQs* (= interrupt requests)
+  - *Internal*: something in the code that the CPU is running raises an event that requires immediate attention
+    - e.g. a page fault (accessing invalid pages), but also dividing by zero, executing privileged or invalid instructions, etc
+    - These are commonly called *exceptions* or *faults*
+
+How would our serial driver example work with interrupts?
+
+#pagebreak()
+
+== Example
+
+#columns(2)[
+```c
+struct {
+  // buffer for the data
+  u64 data[512]; 
+  // elements available to read
+  size_t available;
+} dev;
+
+#define DEV_DATA *(u64*)0x20000008
+void dev_irq()
+{
+  volatile u64 reg_data = DEV_DATA;
+  dev.data[dev.end++] = reg_data;
+  dev.data_available = true;
+}
+```
+
+#colbreak()
+
+```c
+u64 dev_read()
+{
+  if (dev.available != 0)
+    return dev.data[--dev.end];
+  else
+    return 0;
+}
+```
+Note how we:
+- `dev_irq` is called *asynchronously* to read data upon an interrupt
+- We don't block when doing `dev_read` anymore
+- We use a buffer $->$ no more risk of dropping data
+]
+
+== Trap numbers
+
+There are several different kinds of traps. On most architectures, each trap
+type is identified by a *number*
+  - For exceptions, there are usually *architecturally defined* codes identifying
+    each exception type
+  - For interrupts, there are usually *platform defined* numbers identifying
+    each interrupt type
+      - These are called *IRQ numbers* in the Linux world
+      - Generally used for hardware interrupts
+      - Usually correspond to physical hardware pins connected to the CPU/interrupt controller
+
+#pagebreak()
+
+#figure(
+    image("images/03-scause.svg", width:100%),
+    caption: [
+        The `scause` CSR in RISC-V.
+    ]
+)
+
+#figure(
+    image("images/03-interrupt-codes.png", width:40%),
+    caption: [
+        The `scause` interrupt codes in RISC-V.
+    ]
+)
+
+#figure(
+    image("images/03-exception-codes.png", width:35%),
+    caption: [
+        The `scause` exception codes in RISC-V.
+    ]
+)
+
+#pagebreak()
+
+Keep in mind the fundamental difference between *exceptions* and *interrupts*:
+
+- Exceptions are *synchronous*:
+  - Triggered upon executing a code instruction
+    - Illegal instruction
+    - Load/store/instruction page faults
+    - Environment calls (`ecall`)
+  - Identifying codes are architecturally *fixed*
+- Interrupts are *asynchronous*:
+  - Triggered by various hardware events that may happen at any time
+    - Can have various meanings depending on hardware (serial device has data available, GPU finishes rendering frame, etc.)
+  - IRQ numbers are defined by the *platform* (e.g. each defined by the architecture of the motherboard/system-on-chip)
+
+== Trap handlers
+
+A *trap handler* is a function that the CPU jumps to when a trap happens.
+
+There are normally two ways of going about it:
+- Have a single function that handles all traps
+  - This is what is generally used in RISC-V (AFAIK)
+- Have an array of functions that handle different trap types (generally interrupts)
+  - This scheme is what is usually called *vectored interrupt* (and the array is the *interrupt vector table*)
+  - IRQ 0 triggered $->$ CPU jumps to the address stored in `IVT[0]`, IRQ 1 $->$ `IVT[1]` and so on
 
 
 = Understanding Resources
