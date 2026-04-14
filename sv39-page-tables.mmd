@@ -1,0 +1,54 @@
+---
+title: "RISC-V Sv39 Page Table Walk"
+---
+graph TD
+    VA["<b>Virtual Address (39 bits)</b><br/>──────────────────────────────────<br/>│ VPN[2] (9b) │ VPN[1] (9b) │ VPN[0] (9b) │ Offset (12b) │<br/>│ bits 38–30 │ bits 29–21 │ bits 20–12 │ bits 11–0 │"]
+
+    SATP["<b>satp register</b><br/>MODE=8 (Sv39) │ ASID (16b) │ PPN (44b)"]
+
+    L2["<b>Level-2 Page Table</b><br/>(root — 512 entries × 8B = 4 KiB)<br/>Indexed by VPN[2]"]
+    PTE2["PTE<br/>PPN │ RSW │ D A G U X W R V"]
+
+    L1["<b>Level-1 Page Table</b><br/>(512 entries × 8B = 4 KiB)<br/>Indexed by VPN[1]"]
+    PTE1["PTE<br/>PPN │ RSW │ D A G U X W R V"]
+
+    L0["<b>Level-0 Page Table</b><br/>(512 entries × 8B = 4 KiB)<br/>Indexed by VPN[0]"]
+    PTE0["PTE<br/>PPN │ RSW │ D A G U X W R V"]
+
+    PA["<b>Physical Address (56 bits)</b><br/>──────────────────────────────<br/>│ PPN (44 bits) │ Offset (12 bits) │"]
+
+    GIGA["<b>1 GiB Gigapage</b><br/>(leaf at level 2)"]
+    MEGA["<b>2 MiB Megapage</b><br/>(leaf at level 1)"]
+
+    VA -->|"VPN[2] selects entry"| L2
+    SATP -->|"PPN → base address<br/>of root page table"| L2
+
+    L2 --> PTE2
+    PTE2 -->|"R/W/X = 0 → pointer<br/>PPN → next table"| L1
+    PTE2 -.->|"R/W/X ≠ 0<br/>superpage"| GIGA
+
+    L1 --> PTE1
+    PTE1 -->|"R/W/X = 0 → pointer<br/>PPN → next table"| L0
+    PTE1 -.->|"R/W/X ≠ 0<br/>superpage"| MEGA
+
+    L0 --> PTE0
+    PTE0 -->|"R/W/X ≠ 0 → leaf<br/>PPN + Offset"| PA
+
+    subgraph PTE_FORMAT ["Page Table Entry (64 bits)"]
+        direction LR
+        BITS["│ Reserved (10b) │ PPN[2] (26b) │ PPN[1] (9b) │ PPN[0] (9b) │ RSW (2b) │ D │ A │ G │ U │ X │ W │ R │ V │"]
+    end
+
+    style VA fill:#2d6a4f,color:#fff,stroke:#1b4332
+    style PA fill:#2d6a4f,color:#fff,stroke:#1b4332
+    style SATP fill:#e76f51,color:#fff,stroke:#b84a35
+    style L2 fill:#264653,color:#fff,stroke:#1d353f
+    style L1 fill:#264653,color:#fff,stroke:#1d353f
+    style L0 fill:#264653,color:#fff,stroke:#1d353f
+    style PTE2 fill:#457b9d,color:#fff,stroke:#2a6080
+    style PTE1 fill:#457b9d,color:#fff,stroke:#2a6080
+    style PTE0 fill:#457b9d,color:#fff,stroke:#2a6080
+    style GIGA fill:#e9c46a,color:#000,stroke:#c9a84a
+    style MEGA fill:#e9c46a,color:#000,stroke:#c9a84a
+    style BITS fill:#f4f1de,color:#000,stroke:#aaa
+    style PTE_FORMAT fill:none,stroke:#aaa,stroke-dasharray: 5 5

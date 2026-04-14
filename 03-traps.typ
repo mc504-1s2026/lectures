@@ -1,5 +1,6 @@
 #import "@preview/diatypst:0.9.1": *
 #import "@preview/diagraph:0.3.6": *
+#import "@preview/mmdr:0.2.1": mermaid
 
 #show: slides.with(
   title: "Traps", // Required
@@ -306,17 +307,114 @@ Other things to note:
     - Otherwise you will hog resources from the rest of the operating system
     - Preferrably defer slow/heavy work for later
         - Linux: top vs. bottom halves
-- Your trap handler *should never block*``
+- Your trap handler *should never block*
     - e.g. waiting for something to happen for an unknown amount of time
     - This risks having one of the CPUs stuck inside the trap handler forever
-- Your *kernel code* need to assume they can be *preempted*
+- Your regular *kernel code* needs to assume that it can be *preempted* at any time
     - e.g. another higher-priority interrupt can occur during their duration
     - This creates a whole other class of problems that we will cover next class when we talk about *concurrency*
 
+= Trap handling in our mini kernel
+
+== Sv39 canonical addresses
+
+Recall this detail (which you should be familiar with from Lab 01):
+
+#quote(attribution: [The RISC-V Instruction Set Manual])[
+    Sv39 implementations support a 39-bit virtual address space, divided into 4
+    KiB pages. [...] Instruction fetch addresses and load and store effective
+    addresses, which are 64 bits, #highlight[must have bits 63–39 all equal to bit 38], or
+    else a page-fault exception will occur.
+]
+
+- Why did the RISC-V spec authors bother defining this weird condition?
+
 #pagebreak()
 
-Next class:
+Most of you validated this condition by comparing bits directly, e.g.:
 
-- Intro to concurrency
-- In-depth implementation of trap handling in RISC-V
+```c
 
+int vm_map_page(u64 va, phys_addr_t pa, u64 flags) {
+    // ...
+    // validate canonical addresses
+    u64 bit38 = va & (1 << 38);
+    u64 bits63_39 = v >> 39;
+    if (bit38 == 0) return bits63_39 == 0;
+    else return bits63_39 == 0x1ffffff; // 25 bits set to 1
+    // ...
+}
+```
+
+This works! (and most of you passed the tests)
+
+But is there another way to look at it?
+
+#pagebreak()
+
+Notice how when `addr[63:38] == 0`, all addresses *below or equal to*
+
+#[
+    #show math.equation: set text(font: "Fira Code")
+    $
+    #text("0b")underbracket(00000000000000000000000000, "bits[63:38]") 11111111111111111111111111111111111111
+    \ = #text("0x")#text("3fffffffff")
+    $
+]
+
+are valid; similarly, when `addr[63:38] == 1`, all addresses *above or equal to*
+
+#[
+    #show math.equation: set text(font: "Fira Code")
+    $
+    #text("0b")underbracket(11111111111111111111111111, "bits[63:38]") 00000000000000000000000000000000000000
+    \ = #text("0x")#text("ffffffc000000000")
+    $
+]
+
+are valid. This means we have a "hole" in the middle of our virtual address space:
+
+```
+    0x3fffffffff < va < 0xffffffc000000000
+        => va is invalid!
+```
+
+== Lower vs. higher half kernels
+
+- This "hole" in the middle of the VA space is present in most common architectures (`x86_64`, `aarch64`, etc).
+- This naturally creates a separation of the VA space in two regions:
+    - The *lower* half (below the hole)
+    - The *higher* half (above the hole)
+- A choice that we as kernel developers have to make early on is whether we want to implement a *lower half* or *higher half* kernel
+
+#pagebreak()
+
+== Lower half kernels
+
+- Example: xv6
+- The kernel code and data lives in the lower half
+    - e.g., we map `.text`, `.bss`, etc to lower half virtual addresses
+- Userspace also lives in the lower half
+    - e.g. we map all of userspace to lower half addresses as well, with different page tables
+- Pros: generally easier to set up; technically less attack surface since the kernel is not accessible through userspace at all
+- Cons: harder for the kernel to access userspace data (e.g. when servicing syscalls); traps require something called a *trampoline*
+
+#pagebreak()
+
+- Trap handling: upon a trap, switch from userspace to kernel; handle the trap; switch back to userspace
+- Map a piece of code called a *trampoline* to some known location in every process (usually the last virtual memory page)
+- The role of the trampoline is to perform something called a *context switch* between userspace and kernel:
+    - Save all relevant state (e.g. registers) to the original process stack (such as an userspace process)
+    - Load the relevant state of the new process (such as the kernel process) and switch stacks
+    - *Load the new page tables* and *flush the TLB*
+
+#figure(
+    image("images/03-lower-half-kernel.png", width:60%),
+)
+
+- Problem: context switches are *slow*
+    - Reloading page tables + flushing the TLB means we will have lots of cache misses until the cache is warmed up again
+    - Doing a context switch every time we need to handle interrupts is very inefficient
+    - How can we do improve this?
+
+#pagebreak()
